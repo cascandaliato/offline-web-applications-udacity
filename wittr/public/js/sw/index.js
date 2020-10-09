@@ -1,6 +1,7 @@
+const staticCacheName = 'wittr-static-v5';
 self.addEventListener('install', (event) => {
   const urlsToCache = [
-    '/',
+    '/skeleton',
     'js/main.js',
     'css/main.css',
     'imgs/icon.png',
@@ -8,7 +9,23 @@ self.addEventListener('install', (event) => {
     'https://fonts.gstatic.com/s/roboto/v15/d-6IYplOFocCacKzxwXSOD8E0i7KZn-EPnyo3HZu7kw.woff',
   ];
 
-  event.waitUntil(caches.open('wittr-static-v1').then((cache) => cache.addAll(urlsToCache)));
+  event.waitUntil(caches.open(staticCacheName).then((cache) => cache.addAll(urlsToCache)));
+});
+
+self.addEventListener('activate', (event) => {
+  // event.waitUntil(caches.delete('wittr-static-v1'));
+
+  event.waitUntil(
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith('wittr-') && cacheName != staticCacheName)
+            .map((cacheName) => caches.delete(cacheName)),
+        ),
+      ),
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -31,10 +48,22 @@ self.addEventListener('fetch', (event) => {
   //     .catch(() => new Response('Uh oh, that totally failed!')),
   // );
 
+  var requestUrl = new URL(event.request.url);
+  if (requestUrl.origin === location.origin) {
+    if (requestUrl.pathname === '/') {
+      event.respondWith(caches.match('/skeleton'));
+      return;
+    }
+  }
+
   event.respondWith(
     caches
-      .open('wittr-static-v1')
+      .open(staticCacheName)
       .then((cache) => cache.match(event.request))
       .then((response) => response || fetch(event.request.url)),
   );
+});
+
+self.addEventListener('message', function (event) {
+  if (event.data.action === 'skipWaiting') self.skipWaiting();
 });
