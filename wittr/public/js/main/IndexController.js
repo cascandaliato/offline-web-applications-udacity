@@ -2,13 +2,36 @@ import PostsView from './views/Posts';
 import ToastsView from './views/Toasts';
 import idb from 'idb';
 
+function openDatabase() {
+  if (!navigator.serviceWorker) {
+    return Promise.resolve();
+  }
+
+  return idb.open('wittr-db', 1, function (upgradeDb) {
+    const store = upgradeDb.createObjectStore('wittrs', { keyPath: 'id' });
+    store.createIndex('by-date', 'time');
+    // switch (upgradeDb.oldVersion) {
+    //   case 0:
+    //     const wittrsStore = upgradeDb.createObjectStore('wittrs', { keyPath: 'id' });
+    //     wittrsStore.createIndex('by-date', 'time');
+    // }
+  });
+}
+
 export default function IndexController(container) {
   this._container = container;
   this._postsView = new PostsView(this._container);
   this._toastsView = new ToastsView(this._container);
   this._lostConnectionToast = null;
-  this._openSocket();
+  // this._openSocket();
+  // this._dbPromise = openDatabase();
   this._registerServiceWorker();
+
+  const indexController = this;
+
+  this._showCachedMessages().then(function () {
+    indexController._openSocket();
+  });
 }
 
 IndexController.prototype._registerServiceWorker = function () {
@@ -116,5 +139,31 @@ IndexController.prototype._openSocket = function () {
 // called when the web socket sends message data
 IndexController.prototype._onSocketMessage = function (data) {
   var messages = JSON.parse(data);
+
+  this._dbPromise.then(function (db) {
+    if (!db) return;
+
+    const tx = db.transaction('wittrs', 'readwrite');
+    const store = tx.objectStore('wittrs');
+    messages.foEach(function (message) {
+      store.put(message);
+    });
+  });
+
   this._postsView.addPosts(messages);
 };
+
+IndexController.prototype._showCachedMessages = function () {
+  const indexController = this;
+
+  return this._dbPromise.then(function (db) {
+    if (!db || indexController._postsView.showingPosts()) return;
+
+    const index = db.transaction('wittrs')
+      .objectStore('wittrs')
+      .store.index('age');
+    return index.getAll().then(function (messages) {
+     indexController._postsView.addPosts(messages.reverse());
+    });
+  });
+}

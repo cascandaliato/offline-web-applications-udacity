@@ -1,4 +1,4 @@
-const staticCacheName = 'wittr-static-v5';
+const staticCacheName = 'wittr-static-v6';
 self.addEventListener('install', (event) => {
   const urlsToCache = [
     '/skeleton',
