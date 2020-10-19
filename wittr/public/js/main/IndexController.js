@@ -148,6 +148,14 @@ IndexController.prototype._onSocketMessage = function (data) {
     messages.foEach(function (message) {
       store.put(message);
     });
+
+    return store.index('by-date').openCursor(null, 'prev').then(function (cursor) {
+      return cursor.advance(30);
+    }).then(function deleteRest(cursor) {
+      if (!cursor) return;
+      cursor.delete();
+      return cursor.continue().then(deleteRest);
+    });
   });
 
   this._postsView.addPosts(messages);
